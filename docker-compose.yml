@@ -1,0 +1,191 @@
+services:
+  grafana:
+    container_name: grafana
+    image: grafana/grafana:10.1.2
+    user: "1000:1000"
+    environment:
+      GF_SERVER_DOMAIN: 9000-${WEB_HOST}
+    volumes:
+      - ./grafana/data/:/var/lib/grafana
+      - ./grafana/config/:/etc/grafana/
+    networks:
+      - monitoring
+
+  prometheus:
+    container_name: prometheus
+    image: prom/prometheus:v2.47.0
+    user: "1000:1000"
+    volumes:
+      - ./prometheus/data:/prometheus
+      - ./prometheus/config/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./prometheus/config/rules:/etc/prometheus/rules/
+    ports:
+      - 9090:9090
+    command:
+    - --config.file=/etc/prometheus/prometheus.yml
+    - --storage.tsdb.path=/prometheus
+    - --web.console.libraries=/usr/share/prometheus/console_libraries
+    - --web.console.templates=/usr/share/prometheus/consoles
+    - --web.enable-lifecycle
+    - --web.external-url=https://9090-${WEB_HOST}
+    networks:
+      - monitoring
+  node-exporter:
+    container_name: node-exporter
+    image: prom/node-exporter:v1.6.1
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.rootfs=/rootfs'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    ports:
+      - 9100:9100
+    networks:
+      - monitoring
+
+  app-demo-1:
+    container_name: app-demo-1
+    image: julius/prometheus-demo-service:0.11.1
+    ports:
+      - 10001:8080
+    networks:
+      - monitoring
+  app-demo-2:
+    container_name: app-demo-2
+    image: julius/prometheus-demo-service:0.11.1
+    ports:
+      - 10002:8080
+    networks:
+      - monitoring
+
+  alertmanager:
+    container_name: alertmanager
+    image: prom/alertmanager:v0.26.0
+    user: "1000:1000"
+    ports:
+      - 9093:9093
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+      - --web.external-url=https://9093-${WEB_HOST}
+      - --log.level=debug
+    volumes:
+      - ./alertmanager/data:/alertmanager
+      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml
+    networks:
+      - monitoring
+  
+  nginx:
+    container_name: nginx
+    image: nginx:1.25.2-alpine3.18
+    ports:
+      - 9000:80
+    environment:
+      SERVER_DOMAIN: 9000-${WEB_HOST}
+    volumes:
+      - ./nginx/templates:/etc/nginx/templates
+    networks:
+      - monitoring
+  
+  blackbox-exporter:
+    container_name: blackbox-exporter
+    image: prom/blackbox-exporter:v0.24.0
+    networks:
+      - monitoring
+  
+  app-trace-node:
+    build: 
+      context: ./tracer-node
+      dockerfile: Dockerfile
+    ports:
+      - 8000:8000
+    networks:
+      - monitoring
+  
+  tempo:
+    image: grafana/tempo:2.2.0
+    command: ["-config.file=/etc/tempo.yaml"]
+    volumes:
+      - ./tempo/tempo-local.yaml:/etc/tempo.yaml
+      - ./data/tempo-data:/tmp/tempo
+    ports:
+      - "14268:14268"      # jaeger ingest, Jaeger - Thrift HTTP
+      - "14250:14250"      # Jaeger - GRPC
+      - "55680:55680"      # OpenTelemetry
+      - "3200"       # tempo
+      - "6831/udp"   # Jaeger - Thrift Compact
+      - "6832/udp"   # Jaeger - Thrift Binary	
+      - "9411:9411"  # Zipkin
+      - "4317:4317"  # otlp grpc
+      - "4318:4318"  # otlp http
+    networks:
+      - monitoring
+
+  flog-common:
+    container_name: flog-common
+    image: mingrammer/flog:0.4.3
+    command:
+      - -d=10s
+      - -l
+      - -f=apache_common
+    networks:
+      - monitoring
+  flog-combined:
+    container_name: flog-combined
+    image: mingrammer/flog:0.4.3
+    command:
+      - -d=10s
+      - -l
+      - -f=apache_combined
+    networks:
+      - monitoring
+  flog-error:
+    container_name: flog-error
+    image: mingrammer/flog:0.4.3
+    command:
+      - -d=30s
+      - -l
+      - -f=apache_error
+    networks:
+      - monitoring
+
+  loki:
+    image: grafana/loki:2.9.6
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - ./loki/loki-config.yaml:/etc/loki/local-config.yaml
+    restart: always
+    networks:
+        - monitoring
+    
+  promtail:
+    container_name: promtail
+    image: grafana/promtail:2.9.1
+    ports:
+      - 9080:9080
+    environment:
+      CLOUDSHELL_USER: ${USER}
+    command:
+      - -config.file=/etc/promtail/config.yml
+      - -config.expand-env=true
+    volumes:
+      - ./promtail/promtail-config.yml:/etc/promtail/config.yml
+      - /var/log:/var/log
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - monitoring
+
+##### add here ########
+
+
+
+
+networks:
+  monitoring:
+    driver: bridge
