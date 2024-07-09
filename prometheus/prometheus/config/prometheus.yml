@@ -26,3 +26,10 @@ scrape_configs:
     static_configs: # List of labeled statically configured targets for this job.
     - targets:
       - localhost:9090 # Scrape yourself Prometheus metrics
+  
+  - job_name: node_exporter # The job name assigned to scraped metrics by default.
+    metrics_path: /metrics # The HTTP resource path on which to fetch metrics from targets.
+    scheme: http
+    static_configs: # List of labeled statically configured targets for this job.
+    - targets: 
+      - node-exporter:9100 # Scrape node-exporter metrics

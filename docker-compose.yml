@@ -97,14 +97,14 @@ services:
     networks:
       - monitoring
   
-  app-trace-node:
-    build: 
-      context: ./tracer-node
-      dockerfile: Dockerfile
-    ports:
-      - 8000:8000
-    networks:
-      - monitoring
+  # app-trace-node:
+  #   build: 
+  #     context: ./tracer-node
+  #     dockerfile: Dockerfile
+  #   ports:
+  #     - 8000:8000
+  #   networks:
+  #     - monitoring
   
   tempo:
     image: grafana/tempo:2.2.0
